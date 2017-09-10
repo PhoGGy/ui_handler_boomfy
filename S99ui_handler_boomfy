@@ -1,0 +1,42 @@
+#! /bin/sh
+
+DAEMON="/usr/sbin/hostapd"
+DAEMONUSER="root"
+DAEMON_ARGS="-B /etc/hostapd.conf -P /var/run/hostapd.pid"
+PIDFILE="/var/run/hostapd.pid"
+
+
+start() {
+	echo -n "Starting $DAEMON: "
+	start-stop-daemon --start --pidfile $PIDFILE --chuid $DAEMONUSER --exec $DAEMON -- $DAEMON_ARGS
+	[ $? = 0 ] && echo "OK" || echo "FAIL"
+}
+
+stop() {
+	echo -n "Stopping $DAEMON: "
+	start-stop-daemon --stop --pidfile $PIDFILE --chuid $DAEMONUSER --exec $DAEMON
+	[ $? = 0 ] && echo "OK" || echo "FAIL"
+}
+
+restart() {
+	stop
+	sleep 1
+	start
+}
+
+case "$1" in
+  start)
+	start
+	;;
+  stop)
+	stop
+	;;
+  restart|reload)
+	restart
+	;;
+  *)
+	echo "Usage: $0 {start|stop|restart}"
+	exit 1
+esac
+
+exit $?

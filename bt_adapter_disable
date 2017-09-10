@@ -1,0 +1,3 @@
+#!/bin/bash
+
+bt-adapter --set Powered 0

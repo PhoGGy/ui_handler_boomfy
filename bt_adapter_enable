@@ -1,0 +1,9 @@
+#!/bin/bash
+
+bt-adapter --set Powered 1
+bt-adapter --set DiscoverableTimeout 0
+bt-adapter --set Discoverable 1
+bt-adapter --set PairableTimeout 0
+bt-adapter --set Pairable 1
+iw wlan0 set power_save off
+ifup lo
