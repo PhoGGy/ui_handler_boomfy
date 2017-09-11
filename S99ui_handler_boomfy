@@ -1,14 +1,14 @@
 #! /bin/sh
 
-DAEMON="/usr/sbin/hostapd"
+DAEMON="/home/chip/ui_handler_boomfy.py"
 DAEMONUSER="root"
-DAEMON_ARGS="-B /etc/hostapd.conf -P /var/run/hostapd.pid"
-PIDFILE="/var/run/hostapd.pid"
+DAEMON_ARGS=""
+PIDFILE="/var/run/ui_handler_boomfy.pid"
 
 
 start() {
 	echo -n "Starting $DAEMON: "
-	start-stop-daemon --start --pidfile $PIDFILE --chuid $DAEMONUSER --exec $DAEMON -- $DAEMON_ARGS
+	start-stop-daemon --start --make-pidfile --pidfile $PIDFILE --chuid $DAEMONUSER --exec $DAEMON -- $DAEMON_ARGS
 	[ $? = 0 ] && echo "OK" || echo "FAIL"
 }
 
