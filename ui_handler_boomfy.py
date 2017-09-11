@@ -65,6 +65,71 @@ class ButtonThread(Thread):
 	def stop(self):
 		self.quit = 1
 
+class SnapcastThread(Thread): 
+	MODE_SERVER = 1
+	MODE_CLIENT = 2
+	
+	def __init__(self, mode): 
+		Thread.__init__(self) 
+		self.quit = 0
+		self.req_mode = mode
+		self.cur_mode = 0
+	def run(self): 
+		while self.quit != 1:
+			#TODO: Check, if snapclient and/or snapserver still running and restart if not	
+			if self.cur_mode == Snapcast.MODE_SERVER:
+				if self.req_mode == Snapcast.MODE_SERVER:
+					#TODO: check if snapclient and snapserver still running
+					a = 1
+				else: #CLIENT
+					#SERVER-> CLIENT
+					#TODO: kill snapserver and restart snapclient
+					subprocess.call(["/etc/init.d/S99snapserver", "stop"])
+					subprocess.call(["/etc/init.d/S99snapclient", "restart"])
+					self.cur_mode = self.req_mode #when done
+
+			elif self.cur_mode == Snapcast.MODE_CLIENT:
+				if self.req_mode == Snapcast.MODE_SERVER:
+					#CLIENT->SERVER
+					#TODO: start snapserver and restart snapclient
+					subprocess.call(["/etc/init.d/S99snapserver", "restart"])
+					subprocess.call(["/etc/init.d/S99snapclient", "restart"])
+					self.cur_mode = self.req_mode #when done
+				else :	#CLIENT
+					#TODO: check if snapclient still running
+					a = 1
+			else:
+				#TODO: startup, init req_mode
+				if self.req_mode == Snapcast.MODE_SERVER:
+					subprocess.call(["/etc/init.d/S99snapserver", "restart"])
+					subprocess.call(["/etc/init.d/S99snapclient", "restart"])
+					self.cur_mode = self.req_mode
+				else:	#CLIENT
+					subprocess.call(["/etc/init.d/S99snapserver", "stop"])
+					subprocess.call(["/etc/init.d/S99snapclient", "restart"])
+					self.cur_mode = self.req_mode
+				time.sleep(1) #Do nothing
+			time.sleep(3)
+	def set_mode(self, mode):	#set Server or client mode
+		self.connected = 0
+		if mode == Snapcast.MODE_SERVER:
+			self.req_mode = mode
+			dbg(INFO,"SNAP: set Server Mode")
+		elif mode == Snapcast.MODE_CLIENT:
+			self.req_mode = mode
+			dbg(INFO,"SNAP: set Client Mode")
+		else:
+			dbg(WARN,"SNAP: Wrong Mode: {}".format(mode))
+
+	def get_mode(self):
+		return self.cur_mode
+
+	def get_connected(self):
+		return self.connected		
+	
+	def stop(self):
+		self.quit = 1
+		
 class LED:
 	def __init__(self, port):
 		self.port = port
@@ -358,6 +423,8 @@ def main():
 		button = Button(button_port)
 		connectthread = ConnectThread()
 		connectthread.start()
+		snapthread = SnapcastThread()
+		snapthread.start()
 
 		dbg(DBG,"MAIN: ConnectThread started")
 
@@ -383,8 +450,7 @@ def main():
 					dbg(DBG,"MAIN: restart snapcast client")
 					dbg(DBG,"MAIN: start pulseaudio")
 					dbg(DBG,"MAIN: enable bt-adapter")
-					subprocess.call(["/etc/init.d/S99snapserver", "restart"])
-					subprocess.call(["/etc/init.d/S99snapclient", "restart"])
+					snapthread.set_mode(Snapcast.MODE_SERVER)
 					subprocess.call(["/etc/init.d/S50pulseaudio", "restart"])
 					subprocess.call("su -c /home/chip/bt_adapter_enable", shell=True)
 					dbg(INFO,"MAIN: Server State")
@@ -427,7 +493,7 @@ def main():
 						dbg(DBG,"MAIN: restart snapcast client")
 						dbg(DBG,"MAIN: stop pulseaudio")
 						dbg(DBG,"MAIN: disable bt-adapter")
-						subprocess.call(["/etc/init.d/S99snapclient", "restart"])
+						snapthread.set_mode(Snapcast.MODE_CLIENT)
 						subprocess.call(["/etc/init.d/S50pulseaudio", "stop"])
 						subprocess.call("su -c /home/chip/bt_adapter_disable", shell=True)
 						dbg(INFO,"MAIN: Client State")
