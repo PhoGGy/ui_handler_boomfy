@@ -8,7 +8,7 @@ PIDFILE="/var/run/ui_handler_boomfy.pid"
 
 start() {
 	echo -n "Starting $DAEMON: "
-	start-stop-daemon --start --make-pidfile --pidfile $PIDFILE --chuid $DAEMONUSER --exec $DAEMON -- $DAEMON_ARGS
+	start-stop-daemon --start --background --make-pidfile --pidfile $PIDFILE --chuid $DAEMONUSER --exec $DAEMON -- $DAEMON_ARGS
 	[ $? = 0 ] && echo "OK" || echo "FAIL"
 }
 
