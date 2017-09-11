@@ -5,7 +5,10 @@ import subprocess
 import sys
 import select
 from threading import Thread
+from daemonize import Daemonize
 import logging
+
+pid="/var/run/ui_handler_boomfy.pid"
 
 DBG = 0
 INFO = 1
@@ -337,118 +340,121 @@ class ConnectThread(Thread):
 	def stop(self):
 		self.quit = 1
 
+def main():
+	led_red_port = "1022" #"XIO-P6"
+	led_green_port = "1023" #"XIO-P7"
+	button_port = "1016" #"XIO-P0"
+	quit = 0
 
-led_red_port = "1022" #"XIO-P6"
-led_green_port = "1023" #"XIO-P7"
-button_port = "1016" #"XIO-P0"
-quit = 0
+	try:	#catching all exceptions to clean up before closing
+		state = "STARTUP"
+		button = 0	
+		logging.basicConfig(filename='/var/log/ui_handler_boomfy.log',level=logging.DEBUG,format='%(asctime)s %(levelname)-8s %(message)s', datefmt='%H:%M:%S')
 
-try:	#catching all exceptions to clean up before closing
-	state = "STARTUP"
-	button = 0	
-	logging.basicConfig(filename='/var/log/ui_handler_boomfy.log',level=logging.DEBUG,format='%(asctime)s %(levelname)-8s %(message)s', datefmt='%H:%M:%S')
+		dbg(INFO,"MAIN: Starting UI Handler")
 
-	dbg(INFO,"MAIN: Starting UI Handler")
+		led_green = LED(led_green_port)
+		led_red = LED(led_red_port)
+		button = Button(button_port)
+		connectthread = ConnectThread()
+		connectthread.start()
 
-	led_green = LED(led_green_port)
-	led_red = LED(led_red_port)
-	button = Button(button_port)
-	connectthread = ConnectThread()
-	connectthread.start()
+		dbg(DBG,"MAIN: ConnectThread started")
 
-	dbg(DBG,"MAIN: ConnectThread started")
-
-	while quit == 0:
-		time.sleep(1)
-		if state == "STARTUP":
-			dbg(INFO,"MAIN: Startup state")
-			led_red.on()	#turn on red and green
-			led_green.on()
+		while quit == 0:
 			time.sleep(1)
-			state = "INIT_SERVER"
-			connectthread.set_mode(ConnectThread.MODE_SERVER)
-			dbg(INFO,"MAIN: Init Server state")
-			led_red.blink()	#blink red
-			led_green.off()
-		elif state == "INIT_SERVER":
-			
-			if connectthread.get_connected() == 1:	#connected
-				led_red.on() #light red
-				led_green.off()
-				detected_global = 0 #ignore button presses till here
-				dbg(DBG,"MAIN: start snapcast server")
-				dbg(DBG,"MAIN: restart snapcast client")
-				dbg(DBG,"MAIN: start pulseaudio")
-				dbg(DBG,"MAIN: enable bt-adapter")
-				subprocess.call(["/etc/init.d/S99snapserver", "restart"])
-				subprocess.call(["/etc/init.d/S99snapclient", "restart"])
-				subprocess.call(["/etc/init.d/S50pulseaudio", "restart"])
-				subprocess.call("su -c /home/chip/bt_adapter_enable", shell=True)
-				dbg(INFO,"MAIN: Server State")
-				state = "SERVER"
-			else:
-				dbg(DBG,"MAIN: .")
-				
-		elif state == "SERVER":
-			#stay here till button press
-			if detected_global==1:
-				detected_global = 0
-				dbg(INFO,"MAIN: Button Pressed")
-				dbg(INFO,"MAIN: Switch to Client Mode")
-				state = "INIT_CLIENT"
-				connectthread.set_mode(ConnectThread.MODE_CLIENT)
-				led_green.blink() #blink green
-				led_red.off()
-				dbg(DBG,"MAIN: stop snapcast server")
-				subprocess.call(["/etc/init.d/S99snapserver", "stop"])
-			else:
-				#inside Server state
-				a=0
-		elif state == "INIT_CLIENT":
-
-			if detected_global==1:
-				detected_global = 0
-				dbg(INFO,"MAIN: Button Pressed")
-				dbg(INFO,"MAIN: Switch to Server Mode")
+			if state == "STARTUP":
+				dbg(INFO,"MAIN: Startup state")
+				led_red.on()	#turn on red and green
+				led_green.on()
+				time.sleep(1)
 				state = "INIT_SERVER"
 				connectthread.set_mode(ConnectThread.MODE_SERVER)
 				dbg(INFO,"MAIN: Init Server state")
-				led_red.blink() #blink red
+				led_red.blink()	#blink red
 				led_green.off()
-			else:
+			elif state == "INIT_SERVER":
+
 				if connectthread.get_connected() == 1:	#connected
-					
-					led_red.off() #light green
-					led_green.on()
+					led_red.on() #light red
+					led_green.off()
 					detected_global = 0 #ignore button presses till here
+					dbg(DBG,"MAIN: start snapcast server")
 					dbg(DBG,"MAIN: restart snapcast client")
-					dbg(DBG,"MAIN: stop pulseaudio")
-					dbg(DBG,"MAIN: disable bt-adapter")
+					dbg(DBG,"MAIN: start pulseaudio")
+					dbg(DBG,"MAIN: enable bt-adapter")
+					subprocess.call(["/etc/init.d/S99snapserver", "restart"])
 					subprocess.call(["/etc/init.d/S99snapclient", "restart"])
-					subprocess.call(["/etc/init.d/S50pulseaudio", "stop"])
-					subprocess.call("su -c /home/chip/bt_adapter_disable", shell=True)
-					dbg(INFO,"MAIN: Client State")
-					state = "CLIENT"
+					subprocess.call(["/etc/init.d/S50pulseaudio", "restart"])
+					subprocess.call("su -c /home/chip/bt_adapter_enable", shell=True)
+					dbg(INFO,"MAIN: Server State")
+					state = "SERVER"
 				else:
 					dbg(DBG,"MAIN: .")
-		elif state == "CLIENT":
-			if detected_global==1:		#stay here till button press
-				detected_global = 0
-				dbg(INFO,"MAIN: Button Pressed")
-				dbg(INFO,"MAIN: Switch to Server Mode")
-				state = "INIT_SERVER"
-				connectthread.set_mode(ConnectThread.MODE_SERVER)
-				led_red.blink() #blink red
-				led_green.off()
+
+			elif state == "SERVER":
+				#stay here till button press
+				if detected_global==1:
+					detected_global = 0
+					dbg(INFO,"MAIN: Button Pressed")
+					dbg(INFO,"MAIN: Switch to Client Mode")
+					state = "INIT_CLIENT"
+					connectthread.set_mode(ConnectThread.MODE_CLIENT)
+					led_green.blink() #blink green
+					led_red.off()
+					dbg(DBG,"MAIN: stop snapcast server")
+					subprocess.call(["/etc/init.d/S99snapserver", "stop"])
+				else:
+					#inside Server state
+					a=0
+			elif state == "INIT_CLIENT":
+
+				if detected_global==1:
+					detected_global = 0
+					dbg(INFO,"MAIN: Button Pressed")
+					dbg(INFO,"MAIN: Switch to Server Mode")
+					state = "INIT_SERVER"
+					connectthread.set_mode(ConnectThread.MODE_SERVER)
+					dbg(INFO,"MAIN: Init Server state")
+					led_red.blink() #blink red
+					led_green.off()
+				else:
+					if connectthread.get_connected() == 1:	#connected
+
+						led_red.off() #light green
+						led_green.on()
+						detected_global = 0 #ignore button presses till here
+						dbg(DBG,"MAIN: restart snapcast client")
+						dbg(DBG,"MAIN: stop pulseaudio")
+						dbg(DBG,"MAIN: disable bt-adapter")
+						subprocess.call(["/etc/init.d/S99snapclient", "restart"])
+						subprocess.call(["/etc/init.d/S50pulseaudio", "stop"])
+						subprocess.call("su -c /home/chip/bt_adapter_disable", shell=True)
+						dbg(INFO,"MAIN: Client State")
+						state = "CLIENT"
+					else:
+						dbg(DBG,"MAIN: .")
+			elif state == "CLIENT":
+				if detected_global==1:		#stay here till button press
+					detected_global = 0
+					dbg(INFO,"MAIN: Button Pressed")
+					dbg(INFO,"MAIN: Switch to Server Mode")
+					state = "INIT_SERVER"
+					connectthread.set_mode(ConnectThread.MODE_SERVER)
+					led_red.blink() #blink red
+					led_green.off()
+				else:
+					#inside Client state
+					a=0
 			else:
-				#inside Client state
-				a=0
-		else:
-			#Dunno
-			a=6
-except:
-	dbg(ERR,"MAIN: caught exception: quitting...")
-	dbg(ERR,"MAIN: Unexpected error: {}".format(sys.exc_info()[0]))
-	led_green.cleanup()
-	led_red.cleanup()
-	button.cleanup()
+				#Dunno
+				a=6
+	except:
+		dbg(ERR,"MAIN: caught exception: quitting...")
+		dbg(ERR,"MAIN: Unexpected error: {}".format(sys.exc_info()[0]))
+		led_green.cleanup()
+		led_red.cleanup()
+		button.cleanup()
+		
+daemon = Daemonize(app="ui_handler_boomfy", pid=pid, action=main)
+daemon.start()
